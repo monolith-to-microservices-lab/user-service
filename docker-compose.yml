@@ -1,0 +1,45 @@
+# This repository contains ONLY the User Service. The legacy monolith and its
+# database run from a separate repository and are intentionally not referenced
+# here.
+services:
+  user-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: user_service
+      POSTGRES_PASSWORD: user_service
+      POSTGRES_DB: user_service
+    ports:
+      # Host port 5433 to avoid clashing with a local/legacy Postgres on 5432.
+      - "5433:5432"
+    volumes:
+      - user_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user_service -d user_service"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  user-service:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://user_service:user_service@user-postgres:5432/user_service
+      APP_ENV: development
+      LOG_LEVEL: INFO
+      GRACEFUL_SHUTDOWN_SECONDS: "20"
+    ports:
+      # Host port 8001 to avoid clashing with the legacy monolith on 8000.
+      - "8001:8000"
+    depends_on:
+      user-postgres:
+        condition: service_healthy
+    # Give uvicorn time to drain in-flight requests on stop.
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+volumes:
+  user_postgres_data:
