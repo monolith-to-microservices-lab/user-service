@@ -306,3 +306,27 @@ RabbitMQ, Saga, Outbox, Redis, Kubernetes, API Gateway, service mesh,
 communication with Sales, sync back to the monolith (`user-service ->
 monolith`), dual-write, frontend changes. The monolith remains the source of
 truth; this service only consumes. To be evaluated in later steps.
+
+## CI
+
+Every pull request to `main` (and every push to `main`) runs, with no deploy and no cloud credentials:
+
+| Workflow | Job | What it proves |
+|---|---|---|
+| `ci.yml` | **Lint** | `ruff check`, `ruff format --check`, Hadolint (Dockerfile), ShellCheck (entrypoint) |
+| | **Type Check** | `mypy` (no global ignores, no per-module overrides) |
+| | **Unit Tests** | `pytest -m unit` + coverage + JUnit report |
+| | **Integration Tests** | `alembic upgrade head` on a fresh DB, then `pytest -m integration` against a **real PostgreSQL 16** (`user_service_test`) and a **real Kafka 3.9.1** (throw-away topics/consumer groups) |
+| | **Build** | `docker build`, image runs as non-root (UID 1000), Trivy image scan (HIGH/CRITICAL with a fix fails), `docker compose config` |
+| `security.yml` | **Security** | Gitleaks (full history, redacted), Bandit (`app/`), pip-audit (declared dependencies), Trivy config (SARIF → Code Scanning). Also weekly. |
+
+Coverage baseline when CI was introduced: unit 70%, integration 86%. No threshold is enforced yet.
+
+Run the same checks locally:
+
+```bash
+pip install -e ".[dev]"
+ruff check . && ruff format --check . && mypy
+pytest -m unit
+TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/user_service_test pytest -m integration   # needs Postgres + Kafka on localhost:9092
+```
