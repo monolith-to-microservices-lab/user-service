@@ -19,6 +19,6 @@ EXPOSE 8000
 
 # Non-root runtime user.
 RUN useradd --create-home --uid 1000 appuser && chown -R appuser /app
-USER appuser
+USER 1000
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
