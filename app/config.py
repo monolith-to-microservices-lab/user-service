@@ -22,6 +22,14 @@ class Settings(BaseSettings):
     # Graceful shutdown window (seconds) advertised to uvicorn / orchestrators.
     graceful_shutdown_seconds: int = 20
 
+    # --- CDC consumer (app/cdc) ------------------------------------------
+    # Runs as a separate process from the FastAPI server; see app/cdc/__main__.py.
+    kafka_bootstrap_servers: str = "localhost:9092"
+    kafka_users_topic: str = "legacy.public.users"
+    kafka_consumer_group: str = "user-service-cdc"
+    kafka_auto_offset_reset: str = "earliest"
+    cdc_metrics_port: int = 9200
+
 
 @lru_cache
 def get_settings() -> Settings:

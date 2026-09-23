@@ -26,12 +26,24 @@ class JsonFormatter(logging.Formatter):
             "message": record.getMessage(),
             "request_id": request_id_ctx.get(),
         }
+        # OpenTelemetry attaches trace/span ids to the current record when a
+        # span is active; correlates this log line with a trace in Tempo.
+        trace_id = getattr(record, "otelTraceID", None)
+        span_id = getattr(record, "otelSpanID", None)
+        if trace_id and trace_id != "0":
+            payload["trace_id"] = trace_id
+            payload["span_id"] = span_id
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)
 
         # Anything passed via logger.info(..., extra={...}) lands here.
         for key, value in record.__dict__.items():
-            if key not in _STD_LOGRECORD_ATTRS and not key.startswith("_") and key not in payload:
+            if (
+                key not in _STD_LOGRECORD_ATTRS
+                and not key.startswith("_")
+                and not key.startswith("otel")
+                and key not in payload
+            ):
                 payload[key] = value
 
         return json.dumps(payload, default=str)

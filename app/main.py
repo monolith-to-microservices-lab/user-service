@@ -12,7 +12,9 @@ from .config import settings
 from .database import engine
 from .errors import ImportConflictError, UserNotFoundError
 from .logging_config import request_id_ctx, setup_logging
+from .observability import instrument_app, instrument_db_metrics
 from .routes import health, internal, users
+from .tracing import setup_tracing
 
 setup_logging(settings.log_level)
 logger = logging.getLogger("user_service")
@@ -64,6 +66,9 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(RequestContextMiddleware)
+instrument_app(app)
+instrument_db_metrics(engine)
+setup_tracing("user-service", fastapi_app=app, engine=engine)
 
 
 def _error(status_code: int, code: str, message: str, **extra) -> JSONResponse:

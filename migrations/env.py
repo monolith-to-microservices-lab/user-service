@@ -11,7 +11,12 @@ config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers=False: fileConfig()'s default (True) disables
+    # every logger not declared in alembic.ini's [loggers] section - harmless
+    # for the CLI (own process), but would permanently disable this app's own
+    # loggers if alembic.command.* is ever invoked programmatically in the
+    # same process (found as a real bug in sales-service's identical setup).
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 

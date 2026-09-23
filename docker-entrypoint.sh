@@ -4,6 +4,11 @@ set -e
 echo "Running database migrations..."
 alembic upgrade head
 
+if [ "$#" -gt 0 ]; then
+    echo "Starting: $*"
+    exec "$@"
+fi
+
 echo "Starting user-service..."
 exec uvicorn app.main:app \
     --host 0.0.0.0 \

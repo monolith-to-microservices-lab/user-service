@@ -15,6 +15,14 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
     "alembic>=1.13",
+    "confluent-kafka>=2.3",
+    "prometheus-client>=0.20,<1.0",
+    "opentelemetry-api>=1.27,<2.0",
+    "opentelemetry-sdk>=1.27,<2.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.27,<2.0",
+    "opentelemetry-instrumentation-fastapi>=0.48b0",
+    "opentelemetry-instrumentation-sqlalchemy>=0.48b0",
+    "opentelemetry-instrumentation-logging>=0.48b0",
 ]
 
 [project.optional-dependencies]
@@ -29,3 +37,10 @@ packages = ["app"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+    "unit: fast, isolated, no real Kafka/Postgres/network",
+    "integration: uses a real Postgres (isolated test DB) and/or real Kafka",
+    "e2e: full real stack, end-to-end",
+    "slow: takes more than a few seconds",
+    "failure: chaos/failure-injection scenario",
+]

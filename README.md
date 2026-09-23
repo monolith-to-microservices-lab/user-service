@@ -229,8 +229,80 @@ secrets.
 
 ---
 
+## CDC consumer (`legacy.public.users` -> User DB)
+
+A separate process, `python -m app.cdc`, keeps this service's `users` table in
+sync with the legacy monolith by consuming Debezium change events produced by
+the `cdc-infrastructure` repo. It never runs inside the FastAPI process and
+never changes the HTTP behavior above.
+
+```text
+legacy-postgres (monolith)
+   │  WAL
+   ▼
+Debezium / Kafka Connect  ──►  topic legacy.public.users
+                                        │
+                                        ▼
+                          app/cdc  (this repo, separate process)
+                                        │
+                                        ▼
+                              User PostgreSQL (users)
+```
+
+- **`op` handling**: `c` / `r` / `u` → upsert by legacy `id` (same
+  `resync_identity_sequence` used by `/internal/users/import`, so a normal
+  `POST /users` afterwards still gets a fresh, non-colliding id). `d` → delete
+  if present; a no-op if the row is already gone.
+- **Idempotency**: upsert-by-id and delete-if-present mean replaying the same
+  event (or the whole topic from scratch) converges to the same state - no
+  duplicate rows.
+- **Offsets**: `enable.auto.commit=False`. The Kafka offset is committed only
+  after the database transaction for that message has committed. A database
+  failure raises, skips the offset commit, and stops the process; on restart
+  Kafka redelivers from the last committed offset, safely re-applied thanks to
+  idempotency. There's no in-process retry - failures fail fast and rely on
+  the process being restarted (`restart: unless-stopped` in compose).
+- **Tombstones**: the delete-marker message that follows every `d` event
+  (Kafka value `null`) is skipped and its offset is committed immediately -
+  it carries no data to apply.
+- **Logs**: structured JSON (same `JsonFormatter` as the HTTP server), one
+  `cdc.applied` / `cdc.apply_failed` / `cdc.tombstone_skipped` line per
+  message with `topic`, `partition`, `offset`, and - except for
+  tombstones - `op` and `user_id`.
+
+### Configuration
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka broker (host-published port from `cdc-infrastructure`; use `kafka:9092` inside docker-compose) |
+| `KAFKA_USERS_TOPIC` | `legacy.public.users` | Source topic |
+| `KAFKA_CONSUMER_GROUP` | `user-service-cdc` | Kafka consumer group id |
+| `KAFKA_AUTO_OFFSET_RESET` | `earliest` | Where to start if the group has no committed offset yet |
+
+### Running it
+
+```bash
+# via docker compose, alongside user-service and user-postgres
+docker compose up -d --build user-service-cdc
+
+# locally (needs cdc-infrastructure's Kafka reachable at localhost:9092
+# and user-postgres reachable at localhost:5433 - defaults already cover both)
+.venv\Scripts\activate            # Windows
+pip install -e ".[dev]"
+python -m app.cdc
+```
+
+### Tests
+
+`tests/test_cdc.py` covers create/update/delete, idempotent reprocessing, a
+simulated database failure (offset must not be committed), and a simulated
+consumer restart (redelivery must not duplicate a row) - all against the same
+real test PostgreSQL the rest of the suite uses, with the Kafka client faked
+(no broker needed to run `pytest`).
+
 ## Fora de escopo nesta etapa
 
-Kafka, RabbitMQ, Saga, Outbox, CDC/Debezium, Redis, Kubernetes, API Gateway,
-service mesh, communication with Sales or the monolith, dual-write, database
-synchronization, frontend changes. To be evaluated in later steps.
+RabbitMQ, Saga, Outbox, Redis, Kubernetes, API Gateway, service mesh,
+communication with Sales, sync back to the monolith (`user-service ->
+monolith`), dual-write, frontend changes. The monolith remains the source of
+truth; this service only consumes. To be evaluated in later steps.

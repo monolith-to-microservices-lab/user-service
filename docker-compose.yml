@@ -13,6 +13,13 @@ services:
       - "5433:5432"
     volumes:
       - user_postgres_data:/var/lib/postgresql/data
+    networks:
+      default: {}
+      # So postgres-exporter-user (observability-infrastructure) can reach
+      # this DB by name. Read-only exporter; no data here changes.
+      migration-network:
+        aliases:
+          - user-postgres
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U user_service -d user_service"]
       interval: 5s
@@ -26,6 +33,7 @@ services:
       APP_ENV: development
       LOG_LEVEL: INFO
       GRACEFUL_SHUTDOWN_SECONDS: "20"
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
     ports:
       # Host port 8001 to avoid clashing with the legacy monolith on 8000.
       - "8001:8000"
@@ -34,6 +42,12 @@ services:
         condition: service_healthy
     # Give uvicorn time to drain in-flight requests on stop.
     stop_grace_period: 30s
+    networks:
+      default: {}
+      # So Prometheus can scrape :8000/metrics by name.
+      migration-network:
+        aliases:
+          - user-service
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"]
       interval: 10s
@@ -41,5 +55,40 @@ services:
       retries: 5
       start_period: 15s
 
+  # CDC consumer: legacy.public.users (Kafka/Debezium, from the cdc-infrastructure
+  # repo) -> this service's own database. Separate process, same image/build as
+  # user-service, does not serve HTTP. Needs the shared cross-repo network to
+  # reach the Kafka broker.
+  user-service-cdc:
+    build: .
+    command: ["python", "-m", "app.cdc"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://user_service:user_service@user-postgres:5432/user_service
+      APP_ENV: development
+      LOG_LEVEL: INFO
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_USERS_TOPIC: legacy.public.users
+      KAFKA_CONSUMER_GROUP: user-service-cdc
+      KAFKA_AUTO_OFFSET_RESET: earliest
+      CDC_METRICS_PORT: "9200"
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
+    ports:
+      - "9200:9200"
+    depends_on:
+      user-postgres:
+        condition: service_healthy
+    networks:
+      default: {}
+      migration-network:
+        aliases:
+          - user-service-cdc
+    restart: unless-stopped
+
 volumes:
   user_postgres_data:
+
+networks:
+  # Shared, externally-managed network (see cdc-infrastructure). Create once:
+  #     docker network create migration-network
+  migration-network:
+    external: true
