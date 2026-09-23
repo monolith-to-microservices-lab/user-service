@@ -9,6 +9,7 @@ afterward (they're throwaway, uniquely named, and cost nothing sitting idle).
 
 This is the layer that proves real integration: no FakeKafkaConsumer here.
 """
+
 from __future__ import annotations
 
 import json
@@ -20,7 +21,6 @@ from confluent_kafka import Consumer, Producer
 from sqlalchemy import select
 
 from app.cdc.consumer import UserCdcConsumer
-from app.cdc.events import DebeziumUserEnvelope
 from app.database import SessionLocal
 from app.models import User
 
@@ -62,7 +62,9 @@ def _produce(producer, topic, entity_id, op, **kw):
     producer.flush(10)
 
 
-def _make_consumer(topic: str, group: str, session_factory=SessionLocal) -> tuple[UserCdcConsumer, Consumer]:
+def _make_consumer(
+    topic: str, group: str, session_factory=SessionLocal
+) -> tuple[UserCdcConsumer, Consumer]:
     raw = Consumer(
         {
             "bootstrap.servers": KAFKA_BOOTSTRAP,
@@ -112,8 +114,14 @@ class TestRealKafkaCreateUpdateDeleteTombstone:
             _drain_one(wrapper, raw)
             assert _get_user(db_session, entity_id).name == "Created"
 
-            _produce(producer, topic, entity_id, "u", before=_payload(entity_id, "Created"),
-                      after=_payload(entity_id, "Updated"))
+            _produce(
+                producer,
+                topic,
+                entity_id,
+                "u",
+                before=_payload(entity_id, "Created"),
+                after=_payload(entity_id, "Updated"),
+            )
             _drain_one(wrapper, raw)
             assert _get_user(db_session, entity_id).name == "Updated"
 
@@ -148,7 +156,9 @@ class TestDuplicateDelivery:
 
 
 class TestConsumerRestart:
-    def test_new_consumer_instance_same_group_continues_from_committed_offset(self, producer, db_session):
+    def test_new_consumer_instance_same_group_continues_from_committed_offset(
+        self, producer, db_session
+    ):
         topic, group = _unique_topic(), _unique_group()
         wrapper1, raw1 = _make_consumer(topic, group)
         e1, e2 = 90003, 90004
@@ -170,7 +180,9 @@ class TestConsumerRestart:
 
 
 class TestCrashBeforeDbCommit:
-    def test_redelivery_after_apply_failure_ends_in_exactly_one_correct_row(self, producer, db_session, monkeypatch):
+    def test_redelivery_after_apply_failure_ends_in_exactly_one_correct_row(
+        self, producer, db_session, monkeypatch
+    ):
         topic, group = _unique_topic(), _unique_group()
         entity_id = 90005
 
@@ -178,8 +190,11 @@ class TestCrashBeforeDbCommit:
 
         real_apply = consumer_module.apply_user_event
         monkeypatch.setattr(
-            consumer_module, "apply_user_event",
-            lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("simulated crash before db commit")),
+            consumer_module,
+            "apply_user_event",
+            lambda *a, **kw: (_ for _ in ()).throw(
+                RuntimeError("simulated crash before db commit")
+            ),
         )
         wrapper1, raw1 = _make_consumer(topic, group)
         try:
@@ -239,8 +254,12 @@ class TestCrashAfterDbCommitBeforeOffsetCommit:
         entity_id = 90006
 
         real_raw1 = Consumer(
-            {"bootstrap.servers": KAFKA_BOOTSTRAP, "group.id": group,
-             "auto.offset.reset": "earliest", "enable.auto.commit": False}
+            {
+                "bootstrap.servers": KAFKA_BOOTSTRAP,
+                "group.id": group,
+                "auto.offset.reset": "earliest",
+                "enable.auto.commit": False,
+            }
         )
         flaky1 = _FlakyCommitConsumer(real_raw1, fail_times=1)
         wrapper1 = UserCdcConsumer(flaky1, session_factory=SessionLocal, topic=topic)
@@ -270,8 +289,14 @@ class TestOutOfOrder:
         wrapper, raw = _make_consumer(topic, group)
         entity_id = 90007
         try:
-            _produce(producer, topic, entity_id, "u", before=_payload(entity_id, "Never-existed"),
-                      after=_payload(entity_id, "Updated-First"))
+            _produce(
+                producer,
+                topic,
+                entity_id,
+                "u",
+                before=_payload(entity_id, "Never-existed"),
+                after=_payload(entity_id, "Updated-First"),
+            )
             _drain_one(wrapper, raw)
             assert _get_user(db_session, entity_id).name == "Updated-First"
 
@@ -294,8 +319,12 @@ class TestDestinationDatabaseDown:
             raise RuntimeError("simulated destination database down")
 
         raw = Consumer(
-            {"bootstrap.servers": KAFKA_BOOTSTRAP, "group.id": group,
-             "auto.offset.reset": "earliest", "enable.auto.commit": False}
+            {
+                "bootstrap.servers": KAFKA_BOOTSTRAP,
+                "group.id": group,
+                "auto.offset.reset": "earliest",
+                "enable.auto.commit": False,
+            }
         )
         wrapper = UserCdcConsumer(raw, session_factory=_broken_session_factory, topic=topic)
         wrapper.subscribe()
@@ -314,12 +343,16 @@ class TestObservabilityAfterRealPublish:
         topic, group = _unique_topic(), _unique_group()
         wrapper, raw = _make_consumer(topic, group)
         entity_id = 90009
-        before = metrics.EVENTS_PROCESSED_TOTAL.labels(service=metrics.SERVICE_NAME, operation="c")._value.get()
+        before = metrics.EVENTS_PROCESSED_TOTAL.labels(
+            service=metrics.SERVICE_NAME, operation="c"
+        )._value.get()
         try:
             _produce(producer, topic, entity_id, "c", after=_payload(entity_id))
             _drain_one(wrapper, raw)
         finally:
             raw.close()
 
-        after = metrics.EVENTS_PROCESSED_TOTAL.labels(service=metrics.SERVICE_NAME, operation="c")._value.get()
+        after = metrics.EVENTS_PROCESSED_TOTAL.labels(
+            service=metrics.SERVICE_NAME, operation="c"
+        )._value.get()
         assert after == before + 1

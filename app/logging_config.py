@@ -2,16 +2,35 @@ import json
 import logging
 import sys
 from contextvars import ContextVar
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 # Correlation / request ID for the currently handled request. Populated by the
 # RequestContextMiddleware and read by the log formatter below.
 request_id_ctx: ContextVar[str] = ContextVar("request_id", default="-")
 
 _STD_LOGRECORD_ATTRS = {
-    "name", "msg", "args", "levelname", "levelno", "pathname", "filename", "module",
-    "exc_info", "exc_text", "stack_info", "lineno", "funcName", "created", "msecs",
-    "relativeCreated", "thread", "threadName", "processName", "process", "taskName",
+    "name",
+    "msg",
+    "args",
+    "levelname",
+    "levelno",
+    "pathname",
+    "filename",
+    "module",
+    "exc_info",
+    "exc_text",
+    "stack_info",
+    "lineno",
+    "funcName",
+    "created",
+    "msecs",
+    "relativeCreated",
+    "thread",
+    "threadName",
+    "processName",
+    "process",
+    "taskName",
 }
 
 
@@ -19,8 +38,8 @@ class JsonFormatter(logging.Formatter):
     """Minimal structured (JSON) log formatter with request-id enrichment."""
 
     def format(self, record: logging.LogRecord) -> str:
-        payload = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+        payload: dict[str, Any] = {
+            "timestamp": datetime.now(UTC).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),

@@ -4,6 +4,7 @@ full FastAPI app wiring (that's covered at the integration level by
 tests/integration/test_users.py::test_request_id_is_echoed against the real
 app).
 """
+
 from __future__ import annotations
 
 from starlette.applications import Starlette

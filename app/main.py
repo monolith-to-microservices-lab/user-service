@@ -72,7 +72,9 @@ setup_tracing("user-service", fastapi_app=app, engine=engine)
 
 
 def _error(status_code: int, code: str, message: str, **extra) -> JSONResponse:
-    body = {"error": {"code": code, "message": message, "request_id": request_id_ctx.get(), **extra}}
+    body = {
+        "error": {"code": code, "message": message, "request_id": request_id_ctx.get(), **extra}
+    }
     return JSONResponse(status_code=status_code, content=body)
 
 

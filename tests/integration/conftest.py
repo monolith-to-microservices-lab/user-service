@@ -3,16 +3,16 @@ the actual `user_service_test` database (schema drop/recreate + TRUNCATE
 between tests) - kept out of the root conftest.py precisely so tests/unit/**
 never pays that cost or that risk.
 """
+
 import pytest
 import sqlalchemy
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-from tests.conftest import assert_test_database
-
 from app.config import settings
 from app.database import Base, SessionLocal, engine
 from app.main import app
+from tests.conftest import assert_test_database
 
 
 def _ensure_database_exists() -> None:

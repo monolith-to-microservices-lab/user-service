@@ -6,6 +6,7 @@ Scope boundary (deliberately not mixed with apply.py's responsibility):
 - apply.py: SEMANTIC validation - is `after` present for a create, is `op`
   one this system knows how to apply? That is covered in test_apply.py.
 """
+
 from __future__ import annotations
 
 import json
@@ -59,7 +60,12 @@ class TestSuccessCases:
 
     def test_source_ts_ms_is_captured_for_latency(self):
         envelope = DebeziumUserEnvelope.model_validate(
-            {"after": VALID_AFTER, "op": "c", "source": {"ts_ms": 1700000000123}, "ts_ms": 1700000000456}
+            {
+                "after": VALID_AFTER,
+                "op": "c",
+                "source": {"ts_ms": 1700000000123},
+                "ts_ms": 1700000000456,
+            }
         )
         assert envelope.source.ts_ms == 1700000000123
         assert envelope.ts_ms == 1700000000456
@@ -122,11 +128,15 @@ class TestFailureCases:
 
     def test_payload_id_wrong_type_raises(self):
         with pytest.raises(ValidationError):
-            UserCdcPayload.model_validate({"id": "not-a-number", "name": "Alice", "created_at": "2026-01-01T00:00:00Z"})
+            UserCdcPayload.model_validate(
+                {"id": "not-a-number", "name": "Alice", "created_at": "2026-01-01T00:00:00Z"}
+            )
 
     def test_payload_invalid_timestamp_raises(self):
         with pytest.raises(ValidationError):
-            UserCdcPayload.model_validate({"id": 1, "name": "Alice", "created_at": "not-a-timestamp"})
+            UserCdcPayload.model_validate(
+                {"id": 1, "name": "Alice", "created_at": "not-a-timestamp"}
+            )
 
     def test_empty_dict_raises(self):
         with pytest.raises(ValidationError):

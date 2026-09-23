@@ -57,7 +57,9 @@ def _user_row(id: int, name: str, created_at: str = "2026-01-01T00:00:00Z") -> d
     return {"id": id, "name": name, "created_at": created_at}
 
 
-def _message(op: str, offset: int, *, before: dict | None = None, after: dict | None = None) -> FakeMessage:
+def _message(
+    op: str, offset: int, *, before: dict | None = None, after: dict | None = None
+) -> FakeMessage:
     body = {"op": op, "before": before, "after": after, "source": {"table": "users"}, "ts_ms": 1}
     return FakeMessage(json.dumps(body).encode("utf-8"), offset=offset)
 
@@ -127,7 +129,9 @@ def test_reprocessing_same_message_is_idempotent(cdc_consumer, db_session):
     assert rows[0].name == "Dana"
 
 
-def test_db_error_is_not_committed_and_offset_is_not_advanced(cdc_consumer, db_session, monkeypatch):
+def test_db_error_is_not_committed_and_offset_is_not_advanced(
+    cdc_consumer, db_session, monkeypatch
+):
     consumer, fake = cdc_consumer
 
     def _boom(session, envelope):

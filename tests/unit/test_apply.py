@@ -4,6 +4,7 @@ validation lives here (as opposed to events.py's structural parsing) - e.g.
 "a create event needs an `after` payload" is an apply-time rule, not a
 parse-time one.
 """
+
 from __future__ import annotations
 
 import pytest

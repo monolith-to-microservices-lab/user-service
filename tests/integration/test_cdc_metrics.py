@@ -58,11 +58,15 @@ def cdc_consumer():
 
 def test_processed_counter_increments_per_operation(cdc_consumer):
     consumer, _ = cdc_consumer
-    before = _counter_value(metrics.EVENTS_PROCESSED_TOTAL, service=metrics.SERVICE_NAME, operation="c")
+    before = _counter_value(
+        metrics.EVENTS_PROCESSED_TOTAL, service=metrics.SERVICE_NAME, operation="c"
+    )
 
     consumer.process_message(_message_with_source("c", 900, after=_user_row(9001, "Metric-Test")))
 
-    after = _counter_value(metrics.EVENTS_PROCESSED_TOTAL, service=metrics.SERVICE_NAME, operation="c")
+    after = _counter_value(
+        metrics.EVENTS_PROCESSED_TOTAL, service=metrics.SERVICE_NAME, operation="c"
+    )
     assert after == before + 1
 
 
@@ -81,7 +85,9 @@ def test_failed_counter_increments_on_db_error(cdc_consumer, monkeypatch):
     consumer, _ = cdc_consumer
     before = _counter_value(metrics.EVENTS_FAILED_TOTAL, service=metrics.SERVICE_NAME)
 
-    monkeypatch.setattr(consumer_module, "apply_user_event", lambda *_: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(
+        consumer_module, "apply_user_event", lambda *_: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
     with pytest.raises(RuntimeError):
         consumer.process_message(_message_with_source("c", 903, after=_user_row(9003, "B")))
 
@@ -103,14 +109,18 @@ def test_retried_counter_increments_on_same_offset_replay(cdc_consumer):
 
 def test_end_to_end_latency_is_observed_from_source_ts_ms(cdc_consumer):
     consumer, _ = cdc_consumer
-    sum_before, count_before = _histogram_count(metrics.END_TO_END_LATENCY, service=metrics.SERVICE_NAME)
+    sum_before, count_before = _histogram_count(
+        metrics.END_TO_END_LATENCY, service=metrics.SERVICE_NAME
+    )
 
     source_ts_ms = int(time.time() * 1000) - 2000  # 2 seconds ago
     consumer.process_message(
         _message_with_source("c", 905, after=_user_row(9005, "D"), source_ts_ms=source_ts_ms)
     )
 
-    sum_after, count_after = _histogram_count(metrics.END_TO_END_LATENCY, service=metrics.SERVICE_NAME)
+    sum_after, count_after = _histogram_count(
+        metrics.END_TO_END_LATENCY, service=metrics.SERVICE_NAME
+    )
     assert count_after == count_before + 1
     observed_latency = sum_after - sum_before
     assert 1.5 <= observed_latency <= 10  # generous bound for slow CI
@@ -118,10 +128,14 @@ def test_end_to_end_latency_is_observed_from_source_ts_ms(cdc_consumer):
 
 def test_db_commit_duration_is_observed_on_success(cdc_consumer):
     consumer, _ = cdc_consumer
-    sum_before, count_before = _histogram_count(metrics.DB_COMMIT_DURATION, service=metrics.SERVICE_NAME)
+    sum_before, count_before = _histogram_count(
+        metrics.DB_COMMIT_DURATION, service=metrics.SERVICE_NAME
+    )
 
     consumer.process_message(_message_with_source("c", 906, after=_user_row(9006, "E")))
 
-    sum_after, count_after = _histogram_count(metrics.DB_COMMIT_DURATION, service=metrics.SERVICE_NAME)
+    sum_after, count_after = _histogram_count(
+        metrics.DB_COMMIT_DURATION, service=metrics.SERVICE_NAME
+    )
     assert count_after == count_before + 1
     assert sum_after >= sum_before

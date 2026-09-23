@@ -4,6 +4,7 @@ Kafka, no network. `resync_identity_sequence` is Postgres-only raw SQL
 sequence realignment is an orthogonal concern to CDC apply correctness and is
 already verified for real against Postgres in tests/integration/test_cdc.py.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -27,7 +28,9 @@ def sqlite_engine():
 
 @pytest.fixture
 def sqlite_session_factory(sqlite_engine):
-    return sessionmaker(bind=sqlite_engine, autoflush=False, autocommit=False, expire_on_commit=False)
+    return sessionmaker(
+        bind=sqlite_engine, autoflush=False, autocommit=False, expire_on_commit=False
+    )
 
 
 @pytest.fixture

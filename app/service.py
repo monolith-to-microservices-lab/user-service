@@ -5,7 +5,7 @@ idempotent import operation.
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
@@ -59,7 +59,7 @@ def delete_user(session: Session, user_id: int) -> None:
 
 
 def _aware_utc(value: datetime) -> datetime:
-    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 def _diff(existing: User, data: UserImport) -> dict[str, dict[str, str]]:
@@ -97,7 +97,7 @@ def import_user(session: Session, data: UserImport) -> tuple[str, User]:
     session.add(user)
     try:
         session.flush()
-    except IntegrityError:
+    except IntegrityError as exc:
         # Concurrent import of the same id: fall back to the idempotency check.
         session.rollback()
         existing = session.get(User, data.id)
@@ -105,7 +105,7 @@ def import_user(session: Session, data: UserImport) -> tuple[str, User]:
             raise
         conflicts = _diff(existing, data)
         if conflicts:
-            raise ImportConflictError(data.id, conflicts)
+            raise ImportConflictError(data.id, conflicts) from exc
         return "unchanged", existing
 
     resync_identity_sequence(session)

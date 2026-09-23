@@ -4,9 +4,7 @@ import os
 # data. Override with TEST_DATABASE_URL if needed. Set here (root conftest)
 # because it must happen before ANY `app.*` import, regardless of which test
 # level (unit/integration) ends up importing something from `app`.
-_DEFAULT_TEST_DB = (
-    "postgresql+psycopg://user_service:user_service@localhost:5433/user_service_test"
-)
+_DEFAULT_TEST_DB = "postgresql+psycopg://user_service:user_service@localhost:5433/user_service_test"
 os.environ["DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL", _DEFAULT_TEST_DB)
 os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("LOG_LEVEL", "WARNING")
