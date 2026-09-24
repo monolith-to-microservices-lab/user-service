@@ -77,6 +77,13 @@ services:
     depends_on:
       user-postgres:
         condition: service_healthy
+      # The API container runs `alembic upgrade head` at startup and so does
+      # this one (same image/entrypoint). On a FRESH database both racing to
+      # CREATE TABLE alembic_version made one of them exit (seen in CI). Wait
+      # for the API to be healthy (= migrated); the consumer's own upgrade is
+      # then a no-op.
+      user-service:
+        condition: service_healthy
     networks:
       default: {}
       migration-network:
